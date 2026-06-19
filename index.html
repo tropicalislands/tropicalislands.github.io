@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="de"><head>
+  <meta charset="UTF-8">
+  <title>F+B Kalender</title>
+	
+  <!-- ✅ Google Fonts: Barlow -->
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;700&display=swap" rel="stylesheet">
+
+	
+  <!-- ✅ Twemoji einbinden -->
+<script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+
+
+  <style>
+  :root {
+    --emoji-scale: 1.0; /* Basis-Skalierung Emojis */
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: Barlow, sans-serif;
+    color: #000;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    background: url("F+B.jpg") no-repeat center center;
+    background-size: cover;
+  }
+
+  .header {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 2vh 4vw 6vw;
+    position: relative;
+  }
+
+  .logo {
+    max-width: 95vw;
+    height: auto;
+  }
+
+  .clock {
+    position: absolute;
+    top: 10vh;
+    right: 2vw;
+    font-size: 3vh;
+    font-weight: bold;
+    color: #fff;
+  }
+
+  #events {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 0 2vw;
+    overflow: hidden;
+  }
+
+  .event {
+    display: flex;
+    align-items: center;
+    padding-top: 1.5vh;
+    padding-right: 1.0vw;
+    padding-left: 2vw;
+    padding-bottom: 1.5vh;
+    margin: 0.5vh 0;
+    background: rgba(255,255,255,0.8);
+    border-radius: 0.5vh;
+  }
+
+  .event.inactive {
+    color: rgba(255,255,255,1.0);
+    background: rgba(0,0,0,0.8);
+    opacity: 0.75;
+  }
+
+  .time {
+    font-weight: bold;
+    margin-right: 4vw;
+    white-space: nowrap;
+  }
+
+  .title {
+    display: flex;
+    align-items: center;
+    font-weight: bold;
+    flex: 1;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ✅ Twemoji-SVGs */
+  .emoji {
+    height: 1.4em; 
+    width: auto;
+    vertical-align: middle;
+    margin: 0 0.1em;
+  }
+
+  .status-dot {
+    margin-left: auto;
+    font-size: 1.2em;
+    color: limegreen;
+  }
+
+  .Disclaimer {
+    text-align: left;
+    font-size: 1.6vh;
+    padding: 2vh;
+    color: #fff;
+    font-weight: bold;
+  }
+  </style>
+
+</head>
+<body>
+<div class="header">
+  <img src="Bars & Restaurants.png" class="logo">
+  <div class="clock" id="clock"></div>
+</div>
+
+<div id="events"></div>
+<div class="Disclaimer">Änderungen jederzeit vorbehalten. Subject to change without notice.</div>
+
+<script>
+  const apiKey = "AIzaSyCNCbgrF-_cD7SH6UQIt5g_2D9XxQ3SJEo";
+  const calendarId = "grafikfub@gmail.com";
+
+  // Uhrzeit in Kopfzeile aktualisieren
+  function updateClock() {
+    const now = new Date();
+    document.getElementById("clock").textContent =
+      now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // Termine laden
+  async function loadEvents() {
+    const container = document.getElementById("events");
+    container.innerHTML = "<p>Lade Termine...</p>";
+
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+
+      // Google Calendar API Call
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
+        calendarId
+      )}/events?key=${apiKey}&timeMin=${today.toISOString()}&timeMax=${tomorrow.toISOString()}&orderBy=startTime&singleEvents=true&timeZone=Europe/Berlin`;
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP Fehler ${res.status}`);
+
+      const data = await res.json();
+      container.innerHTML = "";
+
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = "<p>Keine Termine für heute</p>";
+        return;
+      }
+
+      // Events vorbereiten
+      const parsed = data.items
+        .map(ev => {
+          let start = ev.start.dateTime ? new Date(ev.start.dateTime) : new Date(ev.start.date);
+          let end = ev.end.dateTime ? new Date(ev.end.dateTime) : new Date(ev.end.date);
+
+          return {
+            summary: ev.summary,
+            __start: start,
+            __end: end,
+            __startTs: start.getTime(),
+            __endTs: end.getTime()
+          };
+        })
+        // Nur Events, die HEUTE starten
+        .filter(ev => {
+          const startDate = ev.__start;
+          return startDate.getDate() === today.getDate() &&
+                 startDate.getMonth() === today.getMonth() &&
+                 startDate.getFullYear() === today.getFullYear();
+        });
+
+      // Duplikate entfernen
+      const seen = new Set();
+      const unique = parsed.filter(ev => {
+        const key = ev.summary + "|" + ev.__startTs;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      // Chronologisch sortieren
+      unique.sort((a, b) => a.__startTs - b.__startTs);
+
+      const now = Date.now();
+
+      // Events ins DOM schreiben
+      unique.forEach(event => {
+        const start = event.__start;
+        const end = event.__end;
+        const time =
+          start.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) +
+          " - " +
+          end.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+
+        const div = document.createElement("div");
+        div.className = "event";
+
+        let isActive = start <= now && end >= now;
+        if (!isActive) {
+          div.classList.add("inactive");
+        }
+
+        // ✅ Nur bei aktiven Terminen grüner Punkt
+        const statusDot = isActive ? `<span class="status-dot">●</span>` : "";
+
+        div.innerHTML = `
+          <div class="time">${time}</div>
+          <div class="title">${event.summary || ""}</div>
+          ${statusDot}
+        `;
+
+        container.appendChild(div);
+      });
+
+      // ✅ Emojis in Events umwandeln
+      twemoji.parse(container, {
+        folder: 'svg',
+        ext: '.svg',
+        className: 'emoji'
+      });
+
+      resizeEvents();
+    } catch (err) {
+      container.innerHTML = `<div class="error">❌ Fehler: ${err.message}</div>`;
+    }
+  }
+
+  // Schriftgrößen dynamisch anpassen
+  function resizeEvents() {
+    const container = document.getElementById("events");
+    const events = container.querySelectorAll(".event");
+    if (events.length === 0) return;
+
+    const availableHeight = container.clientHeight;
+    const perEvent = availableHeight / events.length;
+
+    events.forEach(ev => {
+      const timeEl = ev.querySelector(".time");
+      const titleEl = ev.querySelector(".title");
+      const baseSize = Math.max(Math.floor(perEvent * 0.25), 14);
+
+      ev.style.fontSize = baseSize + "px";
+      if (timeEl) timeEl.style.fontSize = baseSize + "px";
+      if (titleEl) titleEl.style.fontSize = baseSize + "px";
+    });
+  }
+
+  window.addEventListener("resize", resizeEvents);
+  setInterval(resizeEvents, 2000);
+
+  loadEvents();
+  setInterval(loadEvents, 360 * 1000);
+</script>
+
+</body>
+</html>
