@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Entertainment Kalender</title>
+        
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Twemoji -->
+  <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+
+  <style>
+    :root { --emoji-scale: 1.0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      margin: 0; padding: 0;
+      overflow: hidden;
+      font-family: Barlow, sans-serif;
+      color: #000;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      background: url("1080x1920.jpg") no-repeat center center;
+      background-size: cover;
+    }
+
+    /* HEADER + CLOCK */
+    .clock {
+      position: absolute;
+      top: 1vh; right: 2vw;
+      font-size: 3vh;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    /* EVENT LIST */
+    #events {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      padding: 0 2vw;
+      overflow: hidden;
+      margin-top: 4vh;
+    }
+
+    /* EVENT BOX */
+    .event {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      padding: 1.5vh 1vw;
+      margin: 0.5vh 0;
+      background: rgba(255,255,255,0.8);
+      border-radius: 0.5vh;
+      gap: 1vw;
+    }
+
+    .event.inactive {
+      color: rgba(255,255,255,1.0);
+      background: rgba(0,0,0,0.8);
+      opacity: 0.85;
+    }
+
+    .time {
+      font-weight: bold;
+      white-space: nowrap;
+      margin-right: 1vw;
+    }
+
+    .title {
+      display: block;
+      font-weight: bold;
+      flex: 1;
+      margin: 0;
+      white-space: normal;
+      line-height: 1.2;
+      overflow: hidden;
+    }
+
+    .emoji {
+      height: 1.4em;
+      width: auto;
+      vertical-align: middle;
+      margin: 0 0.1em;
+    }
+
+    .status-dot {
+      font-size: 1.0em;
+      color: limegreen;
+      margin-left: 1vw;
+      align-self: flex-start;
+    }
+
+    .Disclaimer {
+      text-align: left;
+      font-size: 0.5vh;
+      padding: 2vh;
+      color: #000000;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="clock" id="clock"></div>
+  <div id="events"></div>
+
+  <div class="Disclaimer">
+    © 2026 Viacom International Inc. All Rights Reserved. ©2026 &TM Spin Master Ltd.<br>
+    Änderungen jederzeit vorbehalten. Subject to change without notice.
+  </div>
+
+<script>
+  const apiKey = "AIzaSyCNCbgrF-_cD7SH6UQIt5g_2D9XxQ3SJEo";
+  const calendarId =
+    "c7e32b305fb1ac07f7e03c8203fec11eed64a34959563eb8ca03a401270e375b@group.calendar.google.com";
+
+  /* CLOCK */
+  function updateClock() {
+    const now = new Date();
+    document.getElementById("clock").textContent =
+      now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  /* LOAD EVENTS */
+  async function loadEvents() {
+    const container = document.getElementById("events");
+    container.innerHTML = "<p>Lade Termine...</p>";
+
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+
+      const url =
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${apiKey}` +
+        `&timeMin=${today.toISOString()}&timeMax=${tomorrow.toISOString()}` +
+        `&orderBy=startTime&singleEvents=true&timeZone=Europe/Berlin`;
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP Fehler ${res.status}`);
+
+      const data = await res.json();
+      container.innerHTML = "";
+
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = "<p>Keine Termine für heute</p>";
+        return;
+      }
+
+      /* PARSE ALL EVENTS */
+      const parsed = data.items.map(ev => {
+        let start = ev.start.dateTime ? new Date(ev.start.dateTime) : new Date(ev.start.date);
+        let end = ev.end.dateTime ? new Date(ev.end.dateTime) : new Date(ev.end.date);
+
+        return {
+          summary: ev.summary,
+          __start: start,
+          __end: end,
+          __startTs: start.getTime(),
+          __endTs: end.getTime()
+        };
+      });
+
+      /* FILTER: ONLY TODAY (but no text filter) */
+      const eventsToday = parsed.filter(ev => {
+        const d = ev.__start;
+        return (
+          d.getDate() === today.getDate() &&
+          d.getMonth() === today.getMonth() &&
+          d.getFullYear() === today.getFullYear()
+        );
+      });
+
+      /* REMOVE DUPLICATES */
+      const seen = new Set();
+      const unique = eventsToday.filter(ev => {
+        const key = ev.summary + "|" + ev.__startTs;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      /* SORT BY START TIME */
+      unique.sort((a, b) => a.__startTs - b.__startTs);
+
+      const now = Date.now();
+
+      /* RENDER */
+      unique.forEach(event => {
+        const start = event.__start;
+        const end = event.__end;
+
+        const time =
+          start.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) +
+          " - " +
+          end.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+
+        const div = document.createElement("div");
+        div.className = "event";
+
+        let isActive = start <= now && end >= now;
+        const statusDot = isActive ? `<div class="status-dot">●</div>` : "";
+
+        if (!isActive) div.classList.add("inactive");
+
+        div.innerHTML = `
+          <div class="time">${time}</div>
+          <div class="title">${event.summary || ""}</div>
+          ${statusDot}
+        `;
+
+        container.appendChild(div);
+      });
+
+      twemoji.parse(container, {
+        folder: 'svg',
+        ext: '.svg',
+        className: 'emoji'
+      });
+
+      resizeEvents();
+
+    } catch (err) {
+      container.innerHTML = `<div class="error">❌ Fehler: ${err.message}</div>`;
+    }
+  }
+
+  /* RESIZE */
+  function resizeEvents() {
+    const container = document.getElementById("events");
+    const events = container.querySelectorAll(".event");
+    if (events.length === 0) return;
+
+    const availableHeight = container.clientHeight;
+    const perEvent = availableHeight / events.length;
+
+    let baseSize = Math.floor(perEvent * 0.25);
+
+    if (baseSize < 14) baseSize = 14;
+    if (baseSize > 42) baseSize = 42;
+
+    events.forEach(ev => {
+      const timeEl = ev.querySelector(".time");
+      const titleEl = ev.querySelector(".title");
+
+      ev.style.fontSize = baseSize + "px";
+      if (timeEl) timeEl.style.fontSize = baseSize + "px";
+      if (titleEl) titleEl.style.fontSize = baseSize + "px";
+    });
+  }
+
+  window.addEventListener("resize", resizeEvents);
+
+  loadEvents();
+  setInterval(loadEvents, 360 * 1000);
+</script>
+
+</body>
+</html>
