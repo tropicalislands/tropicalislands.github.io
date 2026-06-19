@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Amazonia Kalender</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+
+<style>
+:root {
+  --emoji-scale: 1.0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: Barlow, sans-serif;
+}
+
+body {
+  background: url("Spielankuendigung.png") no-repeat center center;
+  background-size: cover;
+}
+
+/* HEADER */
+.header {
+  display: flex;
+  justify-content: center;
+  padding: 2vh;
+  position: relative;
+}
+
+.logo {
+  max-width: 95vw;
+}
+
+.clock {
+  position: absolute;
+  top: 4vh;
+  right: 3vw;
+  font-size: 3vh;
+  font-weight: bold;
+  color: #fff;
+}
+
+/* ✅ EVENTS RECHTS MITTIG */
+
+#events {
+  position: absolute;
+  right: 4vw;
+  top: 50%;
+  transform: translateY(-50%);
+
+  width: 40vw;   /* ✅ vorher 22vw → jetzt 40% */
+
+  display: flex;
+  flex-direction: column;
+  gap: 2vh;
+}
+
+
+/* ✅ EVENT BOX */
+.event {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  padding: 2vh 1vw;
+
+  border: 2px solid #ffffff;
+  border-radius: 2vh;
+
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  text-align: center;
+}
+
+.event-date {
+  font-size: 2vh;
+}
+
+.event-time {
+  font-size: 3vh;
+  font-weight: bold;
+}
+
+
+
+.event-title {
+  font-size: 2vh;
+
+  white-space: normal;     /* ✅ Zeilenumbruch erlaubt */
+  overflow: visible;       /* ✅ nichts wird abgeschnitten */
+  text-overflow: unset;    /* ✅ keine "..." mehr */
+  word-break: break-word;  /* ✅ saubere Umbrüche */
+}
+
+
+}
+
+/* DISCLAIMER */
+.Disclaimer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  font-size: 1.5vh;
+  padding: 2vh;
+  color: #fff;
+}
+</style>
+</head>
+
+<body>
+
+<!--<div class="header">
+  <img src="" class="logo">
+  <div class="clock" id="clock"></div>
+</div>-->
+
+<div id="events"></div>
+
+
+
+<script>
+const apiKey = "AIzaSyCNCbgrF-_cD7SH6UQIt5g_2D9XxQ3SJEo";
+const calendarId = "c7620d390094c8d783f3096f2a1e931ece5aaaf18dcfe10da6255f5c69f1288e@group.calendar.google.com";
+
+/* 📅 Events laden */
+async function loadEvents() {
+  const container = document.getElementById("events");
+  container.innerHTML = "Lade Termine...";
+
+  try {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    /* ✅ FIX: & statt &amp; */
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${apiKey}&timeMin=${today.toISOString()}&timeMax=${tomorrow.toISOString()}&orderBy=startTime&singleEvents=true&timeZone=Europe/Berlin`;
+
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      throw new Error("API Fehler: " + res.status);
+    }
+
+    const data = await res.json();
+
+    container.innerHTML = "";
+
+    if (!data.items || data.items.length === 0) {
+      container.innerHTML = "Keine Termine";
+      return;
+    }
+
+    const events = data.items.map(ev => ({
+      title: ev.summary,
+      start: new Date(ev.start.dateTime || ev.start.date),
+      end: new Date(ev.end.dateTime || ev.end.date)
+    }))
+    .sort((a,b) => a.start - b.start);
+
+    /* ✅ nur 2 Termine */
+    events.slice(0,2).forEach(event => {
+
+      const dateStr = event.start.toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit"
+      });
+
+      const timeStr = event.start.toLocaleTimeString("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+
+      const div = document.createElement("div");
+      div.className = "event";
+
+      div.innerHTML = `
+        <div class="event-date">${dateStr}</div>
+        <div class="event-time">${timeStr}</div>
+        <div class="event-title">${event.title || ""}</div>
+      `;
+
+      container.appendChild(div);
+    });
+
+    twemoji.parse(container, {
+      folder: 'svg',
+      ext: '.svg',
+      className: 'emoji'
+    });
+
+  } catch (e) {
+    console.error(e);
+    container.innerHTML = "Fehler beim Laden";
+  }
+}
+
+loadEvents();
+setInterval(loadEvents, 360000);
+</script>
