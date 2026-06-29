@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Sunset Sessions</title>
+	
+  <!-- ✅ Google Fonts: Barlow -->
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;700&display=swap" rel="stylesheet">
+
+	
+  <!-- ✅ Twemoji -->
+<script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+
+  <style>
+  :root {
+    --emoji-scale: 1.0;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: Barlow, sans-serif;
+    color: #000;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    background: url("1080x1920px.jpg") no-repeat center center;
+    background-size: cover;
+    padding-left: 0px;
+  }
+
+  .header {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 2vh 4vw 4vh;
+    position: relative;
+  }
+
+  .logo {
+    max-width: 95vw;
+    height: auto;
+  }
+
+  .clock {
+    position: absolute;
+    top: 10vh;
+    right: 2vw;
+    font-size: 3vh;
+    font-weight: bold;
+    color: #000000;
+  }
+
+  /* 📌 Events nur bis zum Disclaimer */
+  #events {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 0 2vw;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .event {
+    display: flex;
+    flex-direction: column;
+    padding-top: 1.5vh;
+    padding-right: 1.0vw;
+    padding-left: 3vw;
+    padding-bottom: 1.5vh;
+    margin: 0.5vh 0;
+    background: rgba(255,255,255,0.6);
+    border-radius: 1vh;
+  }
+
+  .event.inactive {
+    color: rgba(255,255,255,1.0);
+    background: rgba(0,0,0,0.8);
+    opacity: 0.75;
+  }
+
+  .event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
+  .time {
+    font-weight: bold;
+    white-space: nowrap;
+  }
+
+  .title {
+    font-weight: bold;
+    margin-top: 0.5vh;
+    overflow-wrap: break-word;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .emoji {
+    height: 1.4em;
+    width: auto;
+    vertical-align: middle;
+    margin: 0 0.1em;
+  }
+
+  .status-dot {
+    font-size: 4em;
+    color: limegreen;
+  }
+
+  /* 📌 Disclaimer fixiert unten */
+  .Disclaimer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    text-align: left;
+    font-size: 1.5vh;
+    padding: 2vh;
+    color: #000000;
+    background: rgba(0,0,0,0.0);
+    font-weight: bold;
+  }
+  </style>
+</head>
+<body>
+<div class="header">
+  <div class="clock" id="clock"></div>
+</div>
+
+<div id="events"></div>
+<div class="Disclaimer">Änderungen jederzeit vorbehalten. Subject to change without notice.</div>
+
+<script>
+  const apiKey = "AIzaSyCNCbgrF-_cD7SH6UQIt5g_2D9XxQ3SJEo";
+  const calendarId = "ee1bb4763dad61975b4749bfb4477e683ee174eec23daf16279fcde2fdc2ca70@group.calendar.google.com";
+
+  // ⏰ Uhrzeit
+  function updateClock() {
+    const now = new Date();
+    document.getElementById("clock").textContent =
+      now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // 📅 Events laden
+  async function loadEvents() {
+    const container = document.getElementById("events");
+    container.innerHTML = "<p>Lade Termine...</p>";
+
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
+        calendarId
+      )}/events?key=${apiKey}&timeMin=${today.toISOString()}&timeMax=${tomorrow.toISOString()}&orderBy=startTime&singleEvents=true&timeZone=Europe/Berlin`;
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP Fehler ${res.status}`);
+
+      const data = await res.json();
+      container.innerHTML = "";
+
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = "<p>Keine Termine für heute</p>";
+        return;
+      }
+
+      const parsed = data.items.map(ev => {
+        let start = ev.start.dateTime ? new Date(ev.start.dateTime) : new Date(ev.start.date);
+        let end = ev.end.dateTime ? new Date(ev.end.dateTime) : new Date(ev.end.date);
+        return {
+          summary: ev.summary,
+          __start: start,
+          __end: end,
+          __startTs: start.getTime(),
+          __endTs: end.getTime(),
+          __duration: end.getTime() - start.getTime()
+        };
+      }).filter(ev => {
+        const startDate = ev.__start;
+        return startDate.getDate() === today.getDate() &&
+               startDate.getMonth() === today.getMonth() &&
+               startDate.getFullYear() === today.getFullYear();
+      });
+
+      const seen = new Set();
+      const unique = parsed.filter(ev => {
+        const key = ev.summary + "|" + ev.__startTs;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      // 🔝 Sortierung: längster Termin zuerst, dann Startzeit
+      unique.sort((a, b) => {
+        if (b.__duration !== a.__duration) {
+          return b.__duration - a.__duration;
+        }
+        return a.__startTs - b.__startTs;
+      });
+
+      const now = Date.now();
+
+      unique.forEach(event => {
+        const start = event.__start;
+        const end = event.__end;
+        const time =
+          start.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) +
+          " - " +
+          end.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+
+        const div = document.createElement("div");
+        div.className = "event";
+
+        let isActive = start <= now && end >= now;
+        if (!isActive) {
+          div.classList.add("inactive");
+        }
+
+        const statusDot = isActive ? `<span class="status-dot">●</span>` : "";
+
+        div.innerHTML = `
+          <div class="event-header">
+            <div class="time">${time}</div>
+            ${statusDot}
+          </div>
+          <div class="title">${event.summary || ""}</div>
+        `;
+
+        container.appendChild(div);
+      });
+
+      twemoji.parse(container, {
+        folder: 'svg',
+        ext: '.svg',
+        className: 'emoji'
+      });
+
+      resizeEvents();
+    } catch (err) {
+      container.innerHTML = `<div class="error">❌ Fehler: ${err.message}</div>`;
+    }
+  }
+
+  // 🔠 Schriftgrößen dynamisch
+  function resizeEvents() {
+    const container = document.getElementById("events");
+    const events = container.querySelectorAll(".event");
+    if (events.length === 0) return;
+
+    const availableHeight = container.clientHeight;
+    const perEvent = availableHeight / events.length;
+
+    events.forEach(ev => {
+      const timeEl = ev.querySelector(".time");
+      const titleEl = ev.querySelector(".title");
+
+      // Basisgrößen
+      const baseSize = Math.max(Math.floor(perEvent * 0.25), 14);
+
+      if (timeEl) timeEl.style.fontSize = Math.round(baseSize * 1.0) + "px";  // ⏰ etwas größer
+      if (titleEl) titleEl.style.fontSize = Math.round(baseSize * 0.8) + "px"; // 📝 etwas kleiner
+    });
+  }
+
+  window.addEventListener("resize", resizeEvents);
+  setInterval(resizeEvents, 2000);
+
+  loadEvents();
+  setInterval(loadEvents, 360 * 1000);
+</script>
+
+</body>
+</html>
