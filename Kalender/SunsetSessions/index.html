@@ -89,7 +89,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    width: 100%;
+    width: 1000%;
   }
 
   .time {
@@ -273,8 +273,8 @@
       // Basisgrößen
       const baseSize = Math.max(Math.floor(perEvent * 0.25), 14);
 
-      if (timeEl) timeEl.style.fontSize = Math.round(baseSize * 1.0) + "px";  // ⏰ etwas größer
-      if (titleEl) titleEl.style.fontSize = Math.round(baseSize * 0.8) + "px"; // 📝 etwas kleiner
+      if (timeEl) timeEl.style.fontSize = Math.round(baseSize * 0.3) + "px";  // ⏰ etwas größer
+      if (titleEl) titleEl.style.fontSize = Math.round(baseSize * 0.5) + "px"; // 📝 etwas kleiner
     });
   }
 
