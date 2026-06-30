@@ -206,14 +206,7 @@
         return true;
       });
 
-      // 🔝 Sortierung: längster Termin zuerst, dann Startzeit
-      unique.sort((a, b) => {
-        if (b.__duration !== a.__duration) {
-          return b.__duration - a.__duration;
-        }
-        return a.__startTs - b.__startTs;
-      });
-
+   
       const now = Date.now();
 
       unique.forEach(event => {
