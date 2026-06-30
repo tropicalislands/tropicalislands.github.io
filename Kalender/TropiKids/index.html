@@ -31,17 +31,18 @@
     /* HEADER + CLOCK */
 	  
 
-.header {
-  flex: 0 0 50px;       /* feste Höhe im Flex-Layout */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  position: relative;
-}
+  .header {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 2vh 4vw 0vh;
+    position: relative;
+  }
 
-.logo {
-  height: 155px;         /* exakt definierte Logo-Größe */
-}
+  .logo {
+    max-width: 100vw;
+    height: auto;
+	  }
 
     .clock {
     position: absolute;
@@ -123,7 +124,7 @@
 
 <body>
 <div class="header">
-
+	  <img src="TropiKidsSommer.png" class="logo">
   <div class="clock" id="clock"></div>
 </div>
 
