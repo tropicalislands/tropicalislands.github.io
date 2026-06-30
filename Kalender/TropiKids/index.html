@@ -29,6 +29,16 @@
     }
 
     /* HEADER + CLOCK */
+	  
+  .header {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 2vh;
+    padding-right: 0vw;
+    padding-left: 0vw;
+    position: relative;
+  }	  
     .clock {
       position: absolute;
       top: 1vh; right: 2vw;
@@ -100,14 +110,18 @@
       text-align: left;
       font-size: 0.5vh;
       padding: 2vh;
-      color: #000000;
+      color: #FFFFFF;
       font-weight: bold;
     }
   </style>
 </head>
 
 <body>
+<div class="header">
+	  <img src="TropiKids Sommer.png" class="logo">
   <div class="clock" id="clock"></div>
+</div>
+
   <div id="events"></div>
 
   <div class="Disclaimer">
